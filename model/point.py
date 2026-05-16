@@ -1,0 +1,1 @@
+# Tutaj sobie zdefiniujemy kolejne elementy naszego modelu, czyli pomocnicze klase które będą w tym modelu reprezentowane.
