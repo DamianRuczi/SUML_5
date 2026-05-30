@@ -1,5 +1,3 @@
-# Miejsce hostowania aplikacji
-
 import uvicorn
 from fastapi import FastAPI, HTTPExecution, Form
 from pathlib import Path
