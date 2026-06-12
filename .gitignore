@@ -1,2 +1,7 @@
 __pycache__
 /env
+.venv/
+*.py[cod]
+
+# Runtime model files will be persisted by Docker volumes in later steps.
+artifacts/*.tmp
