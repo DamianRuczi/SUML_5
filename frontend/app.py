@@ -3,6 +3,7 @@
 import streamlit as st
 import requests
 import os
+import pandas as pd
 
 
 API_URL = os.getenv("API_URL", "http://localhost:8000")
@@ -16,9 +17,18 @@ def predict(passenger):
 def train(passenger):
     return requests.post(f"{API_URL}/api/train", json=passenger, timeout=30).json()
 
+
+def get_data():
+    return requests.get(f"{API_URL}/api/data", timeout=10).json()
+
+
+def get_model():
+    return requests.get(f"{API_URL}/api/model", timeout=10).json()
+
+
 st.set_page_config(
     page_title="Predykcja przeżycia na Titanicu",
-    layout="centered",
+    layout="wide",
 )
 
 def passenger_fields(prefix: str) -> dict[str, object]:
@@ -108,7 +118,9 @@ def show_prediction(result: dict[str, object]) -> None:
 st.title("Predykcja przeżycia pasażera Titanica")
 st.caption("Interfejs komunikuje się z modelem przez backend FastAPI.")
 
-prediction_tab, training_tab = st.tabs(["Predykcja", "Dotrenowanie modelu"])
+prediction_tab, training_tab, charts_tab = st.tabs(
+    ["Predykcja", "Dotrenowanie modelu", "Wizualizacje"]
+)
 
 with prediction_tab:
     st.subheader("Sprawdź prawdopodobieństwo przeżycia")
@@ -148,3 +160,57 @@ with training_tab:
         st.success(result["message"])
         st.write(f"Liczba rekordów treningowych: **{result['training_rows']}**")
         show_prediction(result["prediction"])
+
+with charts_tab:
+    st.subheader("Dane treningowe i parametry modelu")
+
+    data_response = get_data()
+    model_response = get_model()
+
+    training_data = pd.DataFrame(data_response["records"])
+    coefficients = pd.DataFrame(model_response["coefficients"])
+
+    first_metric, second_metric, third_metric = st.columns(3)
+    first_metric.metric("Liczba rekordów", data_response["row_count"])
+    second_metric.metric("Typ modelu", model_response["type"])
+    third_metric.metric("Intercept", f"{model_response['intercept']:.4f}")
+
+    st.markdown("#### Tabela danych treningowych")
+    st.dataframe(training_data, use_container_width=True)
+
+    st.markdown("#### Współczynniki modelu")
+    st.bar_chart(coefficients, x="feature", y="coefficient")
+    st.dataframe(coefficients, use_container_width=True, hide_index=True)
+
+    st.markdown("#### Wykres danych")
+    st.scatter_chart(
+        training_data.dropna(subset=["Age", "Fare"]),
+        x="Age",
+        y="Fare",
+        color="Survived",
+        use_container_width=True,
+    )
+
+    st.markdown("#### Prawdopodobieństwo przeżycia według wieku")
+    age_data = training_data.dropna(subset=["Age"]).copy()
+    age_data["Przedział wieku"] = pd.cut(
+        age_data["Age"],
+        bins=[0, 10, 20, 30, 40, 50, 60, 70, 80, 100],
+    )
+    age_probability = (
+        age_data.groupby("Przedział wieku", observed=True)["Survived"]
+        .mean()
+        .reset_index()
+    )
+    age_probability["Przedział wieku"] = age_probability["Przedział wieku"].astype(
+        str
+    )
+    age_probability = age_probability.rename(
+        columns={"Survived": "Prawdopodobieństwo przeżycia"}
+    )
+    st.line_chart(
+        age_probability,
+        x="Przedział wieku",
+        y="Prawdopodobieństwo przeżycia",
+        use_container_width=True,
+    )
